@@ -27,6 +27,7 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
     private GameObject left_land, right_land, river;
     private CharacterModel[] MCharacter;  
     private BoatModel MBoat;
+    private bool boat_moving;
     // Start is called before the first frame update
     void Awake()
     {
@@ -34,6 +35,7 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         director.currentSceneController = this;
         MCharacter = new CharacterModel[6];
         director.currentSceneController.LoadResources();
+        boat_moving = false;
     }
 
     public void LoadResources()
@@ -106,15 +108,13 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         Debug.Log("Move boat");
         if (MBoat.is_empty())
             return;
-
-        MBoat.move_boat();
+        MBoat.turn_side();
         int[] custom_num = MBoat.get_customs();
         if (custom_num[0] != -1)
-            MCharacter[custom_num[0]].move_with_boat();
+            MCharacter[custom_num[0]].turn_side();
         if (custom_num[1] != -1)
-            MCharacter[custom_num[1]].move_with_boat();
-        UserGUI.situation = get_game_situation();
-        if (UserGUI.situation != 0) stop_all();
+            MCharacter[custom_num[1]].turn_side();
+        boat_moving = true;
         Debug.Log(UserGUI.situation);
     }
 
@@ -143,15 +143,21 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         MCharacter[character_num].to_land();
     }
 
-    void Start()
-    {
-        
-    }
-
     // Update is called once per frame
     void Update()
     {
-        
+        if (!boat_moving) return;
+        int[] custom_num = MBoat.get_customs();
+        if (custom_num[0] != -1)
+            MCharacter[custom_num[0]].move_with_boat();
+        if (custom_num[1] != -1)
+            MCharacter[custom_num[1]].move_with_boat();
+        if (MBoat.move_boat())
+        {
+            UserGUI.situation = get_game_situation();
+            if (UserGUI.situation != 0) stop_all();
+            boat_moving = false;
+        }
     }
 
     public void restart()
@@ -171,6 +177,7 @@ public class CharacterModel
     private bool on_boat;
     readonly int character_num;
     readonly Vector3 ori_pos;
+    private Vector3 dst_pos;
     private ClickAction click_action;
 
     public CharacterModel(int Type, Vector3 Ori_pos, int i)
@@ -202,9 +209,9 @@ public class CharacterModel
     {
         click_action.set_moveable(true);
     }
-    public void set_side(int side)
+    public void turn_side()
     {
-        which_side = side;
+        which_side *= -1;
     }
     public int get_side()
     {
@@ -233,9 +240,10 @@ public class CharacterModel
     public void move_with_boat()
     {
         if (!on_boat) return;
-        Vector3 move = new Vector3((float)which_side * 8F, 0, 0);
-        character.transform.position += move;
-        which_side *= -1;
+        Vector3 move = new Vector3((float)which_side * -20F, 0, 0);
+        //dst_pos
+        character.transform.position += move* Time.deltaTime;
+        //which_side *= -1;
     }
 
     public void restart()
@@ -251,6 +259,7 @@ public class BoatModel
     readonly GameObject boat;
     private int which_side;  // right:-1, left:1
     readonly Vector3 ori_pos;
+    private Vector3 dst_pos;
     readonly Vector3[] relative_pos; 
     private int[] seat;
     readonly ClickAction click_action;
@@ -280,6 +289,10 @@ public class BoatModel
     public int get_side()
     {
         return which_side;
+    }
+    public void turn_side()
+    {
+        which_side*=-1;
     }
     public bool has_empty()
     {
@@ -322,15 +335,18 @@ public class BoatModel
         boat.transform.position = ori_pos;
     }
 
-    public void move_boat()
+    public bool move_boat()
     {
         //float step = 10 * Time.deltaTime;
         //boat.transform.localPosition = 
         //    Vector3.MoveTowards(boat.transform.localPosition, new Vector3(-4F, 0.25F, 0), step);
         if ((seat[0] == -1) && (seat[1] == -1))
-            return;
-        boat.transform.position = new Vector3(4F * (float)which_side, 0.25F, 0);
-        which_side *= -1;
-
+            return false;
+        dst_pos = new Vector3(-4F * (float)which_side, 0.25F, 0);
+        boat.transform.position = Vector3.MoveTowards(boat.transform.position, dst_pos, 20 * Time.deltaTime);
+        if (boat.transform.position.x == dst_pos.x) return true;
+        //boat.transform.position = new Vector3(4F * (float)which_side, 0.25F, 0);
+        //which_side *= -1;
+        return false;
     }
 }

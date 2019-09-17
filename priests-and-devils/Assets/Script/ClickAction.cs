@@ -36,9 +36,4 @@ public class ClickAction : MonoBehaviour
             action.click_character(character_num);
         }
     }
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
 }
