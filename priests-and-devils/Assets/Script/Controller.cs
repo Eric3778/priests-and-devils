@@ -27,7 +27,8 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
     private GameObject left_land, right_land, river;
     private CharacterModel[] MCharacter;  
     private BoatModel MBoat;
-    private bool boat_moving;
+    public CCActionManager actionManager;
+    public CCJudgement judgement;
     // Start is called before the first frame update
     void Awake()
     {
@@ -35,7 +36,7 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         director.currentSceneController = this;
         MCharacter = new CharacterModel[6];
         director.currentSceneController.LoadResources();
-        boat_moving = false;
+        actionManager = gameObject.AddComponent<CCActionManager>() as CCActionManager;
     }
 
     public void LoadResources()
@@ -64,30 +65,15 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         }
     }
 
-    public int get_game_situation()   // -1:fail 0:not_end 1:success
+    public int get_character_side(int num)
     {
-        int left_d = 0, left_p = 0, right_d = 0, right_p = 0;
-        for (int i = 0; i < 6; i++)
-        {
-            if(i < 3)
-            {
-                if (MCharacter[i].get_side() == -1)
-                    right_d += 1;
-                else
-                    left_d += 1;
-            }
-            else
-            {
-                if (MCharacter[i].get_side() == -1)
-                    right_p += 1;
-                else
-                    left_p += 1;
-            }
-            
-        }
-        if (left_d == 3 && left_p == 3) return 1;
-        if (((left_d > left_p)&&(left_p!=0))|| ((right_d > right_p)&&(right_p!=0))) return -1;
-        return 0;
+        return MCharacter[num].get_side();
+    }
+
+    public void change_game_situation()
+    {
+        UserGUI.situation = judgement.GetSituation();
+        if (UserGUI.situation != 0) stop_all();
     }
 
     public void stop_all()
@@ -111,10 +97,17 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         MBoat.turn_side();
         int[] custom_num = MBoat.get_customs();
         if (custom_num[0] != -1)
+        {
             MCharacter[custom_num[0]].turn_side();
+            actionManager.Move(MCharacter[custom_num[0]].character, MCharacter[custom_num[0]].get_dst(), 20);
+        }
         if (custom_num[1] != -1)
+        {
             MCharacter[custom_num[1]].turn_side();
-        boat_moving = true;
+            actionManager.Move(MCharacter[custom_num[1]].character, MCharacter[custom_num[1]].get_dst(), 20);
+        }
+        actionManager.Move(MBoat.boat, MBoat.get_dst(), 20);
+        this.stop_all();
         Debug.Log(UserGUI.situation);
     }
 
@@ -146,18 +139,6 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
     // Update is called once per frame
     void Update()
     {
-        if (!boat_moving) return;
-        int[] custom_num = MBoat.get_customs();
-        if (custom_num[0] != -1)
-            MCharacter[custom_num[0]].move_with_boat();
-        if (custom_num[1] != -1)
-            MCharacter[custom_num[1]].move_with_boat();
-        if (MBoat.move_boat())
-        {
-            UserGUI.situation = get_game_situation();
-            if (UserGUI.situation != 0) stop_all();
-            boat_moving = false;
-        }
     }
 
     public void restart()
@@ -171,7 +152,7 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
 
 public class CharacterModel
 {
-    readonly GameObject character;
+    public GameObject character;
     readonly int type;        // devil:0, priest:1
     private int which_side;  // right:-1, left:1
     private bool on_boat;
@@ -237,13 +218,9 @@ public class CharacterModel
         curr_pos.x = curr_pos.x * (float)which_side * -1;
         character.transform.position = curr_pos;
     }
-    public void move_with_boat()
+    public Vector3 get_dst()
     {
-        if (!on_boat) return;
-        Vector3 move = new Vector3((float)which_side * -20F, 0, 0);
-        //dst_pos
-        character.transform.position += move* Time.deltaTime;
-        //which_side *= -1;
+        return character.transform.position + new Vector3((float)which_side * -8F, 0, 0);
     }
 
     public void restart()
@@ -256,7 +233,7 @@ public class CharacterModel
 
 public class BoatModel
 {
-    readonly GameObject boat;
+    public GameObject boat;
     private int which_side;  // right:-1, left:1
     readonly Vector3 ori_pos;
     private Vector3 dst_pos;
@@ -334,19 +311,8 @@ public class BoatModel
         seat[1] = -1;
         boat.transform.position = ori_pos;
     }
-
-    public bool move_boat()
+    public Vector3 get_dst()
     {
-        //float step = 10 * Time.deltaTime;
-        //boat.transform.localPosition = 
-        //    Vector3.MoveTowards(boat.transform.localPosition, new Vector3(-4F, 0.25F, 0), step);
-        if ((seat[0] == -1) && (seat[1] == -1))
-            return false;
-        dst_pos = new Vector3(-4F * (float)which_side, 0.25F, 0);
-        boat.transform.position = Vector3.MoveTowards(boat.transform.position, dst_pos, 20 * Time.deltaTime);
-        if (boat.transform.position.x == dst_pos.x) return true;
-        //boat.transform.position = new Vector3(4F * (float)which_side, 0.25F, 0);
-        //which_side *= -1;
-        return false;
+        return new Vector3(-4F * (float)which_side, 0.25F, 0);
     }
 }
