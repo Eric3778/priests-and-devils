@@ -27,8 +27,12 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
     private GameObject left_land, right_land, river;
     private CharacterModel[] MCharacter;  
     private BoatModel MBoat;
+    private bool[,,] visited;
     public CCActionManager actionManager;
     public CCJudgement judgement;
+    Stack<KeyValuePair<int, int>> path;
+    bool auto_mode;
+    float spendTime;
     // Start is called before the first frame update
     void Awake()
     {
@@ -37,6 +41,8 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         MCharacter = new CharacterModel[6];
         director.currentSceneController.LoadResources();
         actionManager = gameObject.AddComponent<CCActionManager>() as CCActionManager;
+        visited = new bool[4,4,2];
+        auto_mode = false;
     }
 
     public void LoadResources()
@@ -89,6 +95,117 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
         MBoat.enable_boat();
     }
 
+    bool is_valid(int ld, int lp)
+    { //判断一个状态是否违反规则（某一边恶魔大于牧师） 
+        if ((lp != 0 && ld > lp) || ((3 - lp != 0) && (3 - ld) > (3 - lp))) return false;
+        return true;
+    }
+
+
+    Stack<KeyValuePair<int, int> > search(int ld, int lp, int side)
+    { //输入一个状态，进行寻路 
+        visited[ld,lp,side] = true;
+        Stack<KeyValuePair<int, int> > path = new Stack<KeyValuePair<int, int>>();
+        if (ld == 3 && lp == 3)
+        {  //结束状态，用全0标记 
+            path.Push(new KeyValuePair<int, int>(0, 0));
+            return path;
+        }
+        int D = (side == 0) ? ld : (3 - ld);
+        int P = (side == 0) ? lp : (3 - lp);
+        int next_side = (side == 0) ? 1 : 0;
+        for (int d = 0; d <= D; d++)
+        {
+            for (int p = 0; p <= P; p++)
+            {
+                if (d + p > 2 || d + p == 0) continue;
+                int temp_ld = (side == 0) ? ld - d : ld + d;
+                int temp_lp = (side == 0) ? lp - p : lp + p;
+                if (!is_valid(temp_ld, temp_lp)) continue; //检查变换之后是否违反规则 
+                if (visited[temp_ld,temp_lp,next_side]) continue; //检测变换之后的状态是否已经展开过 
+                //Debug.Log("(%d, %d, %d)->(%d, %d, %d)\n", ld, lp, side, temp_ld, temp_lp, next_side);
+                path = search(temp_ld, temp_lp, next_side); //递归查找一条路径 
+                if (path.Count != 0)
+                { //如果返回结果为空，说明是死路 
+                    path.Push(new KeyValuePair<int, int>(d, p));
+                    return path;
+                }
+            }
+        }
+        return path;
+    }
+
+    public void auto_move()
+    {
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                for (int k = 0; k < 2; k++)
+                    visited[i, j, k] = false;
+        int left_d = 0, left_p = 0, right_d = 0, right_p = 0;
+        for (int i = 0; i < 6; i++)
+        {
+            if (i < 3)
+            {
+                if (get_character_side(i) == -1)
+                    right_d += 1;
+                else
+                    left_d += 1;
+            }
+            else
+            {
+                if (get_character_side(i) == -1)
+                    right_p += 1;
+                else
+                    left_p += 1;
+            }
+        }
+        int side = (MBoat.get_side()==-1)?1:0;
+        path = search(left_d, left_p, side);
+        auto_mode = true;
+        this.stop_all();
+    } 
+
+    void next_step()
+    {
+        if (path.Count == 0) return;
+        int side = MBoat.get_side();
+        KeyValuePair<int, int> move = path.Pop();
+        if (move.Key == 0 && move.Value == 0)
+        {
+            Debug.Log("success");
+            return;
+        }
+        string output = "move " + (move.Key).ToString() + " Devils and " + (move.Value).ToString() + " Priests ";
+        string move_str = (side == 0) ? "from right to left" : "from left to right";
+        output += move_str;
+        Debug.Log(output);
+        for(int i = 0; i < 6; i++)
+        {
+            if (MCharacter[i].get_whether_on_boat())
+            {
+                to_land(i);
+            }
+        }
+        int curr_d = 0, curr_p = 0;
+        for(int i = 0; i < 6; i++)
+        {
+            if(MCharacter[i].get_side() == side)
+            {
+                if(i < 3 && curr_d < move.Key)
+                {
+                    take_boat(i);
+                    curr_d+=1;
+                }
+                if(i >= 3 && curr_p < move.Value)
+                {
+                    take_boat(i);
+                    curr_p += 1;
+                }
+            }
+        }
+        move_boat();
+    }
+
     public void move_boat()
     {
         Debug.Log("Move boat");
@@ -139,11 +256,19 @@ public class Controller : MonoBehaviour, ISceneController, IUserAction
     // Update is called once per frame
     void Update()
     {
+        if (!auto_mode) return;
+        spendTime += Time.deltaTime;
+        if(spendTime > 1.5)
+        {
+            spendTime = 0;
+            next_step();
+        }
     }
 
     public void restart()
     {
         MBoat.restart();
+        auto_mode = false;
         for (int i = 0; i < 6; i++)
             MCharacter[i].restart();
         enable_all();

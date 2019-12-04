@@ -6,6 +6,7 @@ public interface IUserAction
 {
     void restart();
     void move_boat();
+    void auto_move();
     void click_character(int character_num);
 }
 
@@ -29,12 +30,19 @@ public class UserGUI : MonoBehaviour
         else if(situation == SituationType.Win)
             GUI.Label(new Rect(Screen.width * 7 / 16, Screen.height * (7 / 16),
                 Screen.width / 8, Screen.height / 8), "You win!");
-        if (GUI.Button(new Rect(Screen.width * 7 / 16, Screen.height / 8,
+        if (GUI.Button(new Rect(Screen.width * 6 / 16, Screen.height / 8,
                 Screen.width / 8, Screen.height / 8), "Restart"))
         {
             situation = SituationType.Continue;
             Debug.Log("Game restart");
             action.restart();
+        }
+        if (GUI.Button(new Rect(Screen.width * 8 / 16, Screen.height / 8,
+                Screen.width / 8, Screen.height / 8), "Auto Move"))
+        {
+            situation = SituationType.Continue;
+            Debug.Log("Auto Move start");
+            action.auto_move();
         }
     }
 }
