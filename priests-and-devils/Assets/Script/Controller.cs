@@ -352,7 +352,7 @@ public class CharacterModel
     {
         on_boat = false;
         which_side = -1;
-        character.transform.position = ori_pos;
+        character.transform.position = character.transform.parent.position+ori_pos;
     }
 }
 
